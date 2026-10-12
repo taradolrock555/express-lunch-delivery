@@ -1,0 +1,128 @@
+<section class="dashboard">
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">OWNER WORKSPACE</p>
+      <h1>จัดการออเดอร์</h1>
+      <p class="subtitle">จำลองการจัดการออเดอร์ก่อนส่งข้อมูลให้ระบบวางแผนเส้นทาง</p>
+    </div>
+    <button class="refresh-button" type="button" (click)="loadOrders()" [disabled]="isLoading()">
+      {{ isLoading() ? 'กำลังโหลด...' : 'รีเฟรชรายการ' }}
+    </button>
+  </div>
+
+  @if (successMessage(); as message) {
+    <p class="notice success" role="status">{{ message }}</p>
+  }
+  @if (errorMessage(); as error) {
+    <p class="notice error" role="alert">
+      {{ error }}
+      <button class="text-button" type="button" (click)="loadData()">โหลดรายการอีกครั้ง</button>
+    </p>
+  }
+
+  <section class="create-card" aria-labelledby="create-order-title">
+    <div class="card-heading">
+      <div>
+        <h2 id="create-order-title">{{ editingOrderId === null ? 'สร้างออเดอร์จำลอง' : 'แก้ไขออเดอร์' }}</h2>
+        <p>กำหนดจำนวนไม่เกิน 3 กล่องต่อออเดอร์ตามเงื่อนไขโจทย์</p>
+      </div>
+      <a routerLink="/customers">จัดการข้อมูลลูกค้า</a>
+    </div>
+    @if (customers().length === 0) {
+      <p class="helper-message">เพิ่มข้อมูลลูกค้าก่อนสร้างออเดอร์</p>
+    } @else {
+      <form class="order-form" (ngSubmit)="saveOrder()">
+        <label>
+          ลูกค้า
+          <select name="customerId" [(ngModel)]="orderDraft.customerId" required>
+            @for (customer of customers(); track customer.id) {
+              <option [ngValue]="customer.id">{{ customer.name }} — {{ customer.address }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          จำนวนกล่อง
+          <input name="totalBoxes" type="number" min="1" max="3" [(ngModel)]="orderDraft.totalBoxes" required />
+        </label>
+        <div class="form-actions">
+          <button class="refresh-button" type="submit" [disabled]="isSaving">
+            {{ isSaving ? 'กำลังบันทึก...' : editingOrderId === null ? 'เพิ่มออเดอร์' : 'บันทึกการแก้ไข' }}
+          </button>
+          @if (editingOrderId !== null) {
+            <button class="cancel-button" type="button" (click)="cancelEdit()">ยกเลิก</button>
+          }
+        </div>
+      </form>
+    }
+  </section>
+
+  <section class="orders-card" aria-labelledby="orders-title">
+    <div class="card-heading">
+      <div>
+        <h2 id="orders-title">รายการออเดอร์</h2>
+        <p>ออเดอร์ทั้งหมด {{ orders().length }} รายการ</p>
+      </div>
+      <span class="live-indicator"><span></span> ข้อมูลจำลอง</span>
+    </div>
+
+    @if (isLoading()) {
+      <div class="message-state" role="status">กำลังโหลดรายการออเดอร์...</div>
+    } @else if (errorMessage(); as error) {
+      <div class="message-state error-state" role="alert">
+        <p>{{ error }}</p>
+        <button class="text-button" type="button" (click)="loadOrders()">ลองอีกครั้ง</button>
+      </div>
+    } @else if (orders().length === 0) {
+      <div class="message-state">ยังไม่มีออเดอร์ในระบบ</div>
+    } @else {
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">ออเดอร์</th>
+              <th scope="col">ลูกค้า</th>
+              <th scope="col">จำนวน</th>
+              <th scope="col">จุดรับอาหาร</th>
+              <th scope="col">จุดส่ง</th>
+              <th scope="col">สถานะ</th>
+              <th scope="col">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (order of orders(); track order.id) {
+              <tr>
+                <td class="order-id">#{{ order.id }}</td>
+                <td class="customer-name">{{ order.customerName }}</td>
+                <td>{{ order.totalBoxes }} กล่อง</td>
+                <td>{{ order.pickupAddress }}</td>
+                <td>{{ order.deliveryAddress }}</td>
+                <td>
+                  <span class="status-badge" [class]="statusClass(order.status)">
+                    {{ statusLabel(order.status) }}
+                  </span>
+                </td>
+                <td class="row-actions">
+                  <button class="text-button" type="button" (click)="editOrder(order)">แก้ไข</button>
+                  <button class="text-button danger-text" type="button" (click)="deleteOrder(order)">ลบ</button>
+                  <select
+                    [attr.aria-label]="'เปลี่ยนสถานะออเดอร์ ' + order.id"
+                    [ngModel]="order.status"
+                    [ngModelOptions]="{ standalone: true }"
+                    (ngModelChange)="updateStatus(order, $event)"
+                  >
+                    <option value="pending">รอดำเนินการ</option>
+                    <option value="preparing">กำลังเตรียม</option>
+                    <option value="ready">พร้อมจัดส่ง</option>
+                    <option value="delivering">กำลังจัดส่ง</option>
+                    <option value="delivered">จัดส่งแล้ว</option>
+                    <option value="cancelled">ยกเลิก</option>
+                  </select>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</section>

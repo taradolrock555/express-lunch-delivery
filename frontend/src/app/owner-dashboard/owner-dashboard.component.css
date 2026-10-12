@@ -1,0 +1,318 @@
+.dashboard {
+  display: grid;
+  gap: 28px;
+}
+
+.create-card {
+  background: #fff;
+  border: 1px solid #e7ebf2;
+  border-radius: 18px;
+  box-shadow: 0 12px 35px rgb(15 23 42 / 4%);
+  padding: 22px 26px;
+}
+
+.create-card .card-heading {
+  padding: 0;
+}
+
+.create-card .card-heading a {
+  color: #1d4ed8;
+  font-size: .84rem;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.order-form {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(220px, 1fr) 150px auto;
+}
+
+.order-form label {
+  color: #475569;
+  display: grid;
+  font-size: .84rem;
+  font-weight: 600;
+  gap: 7px;
+}
+
+.order-form select,
+.order-form input,
+.row-actions select {
+  background: #fff;
+  border: 1px solid #d8e0eb;
+  border-radius: 9px;
+  color: #172033;
+  font: inherit;
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+.form-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.cancel-button,
+.text-button {
+  background: transparent;
+  border: 0;
+  color: #1d4ed8;
+  cursor: pointer;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 650;
+  padding: 8px;
+}
+
+.cancel-button {
+  color: #475569;
+}
+
+.danger-text {
+  color: #b91c1c;
+}
+
+.notice {
+  border-radius: 10px;
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.success {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.helper-message {
+  color: #64748b;
+  margin: 0;
+}
+
+.page-heading,
+.card-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.eyebrow {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin: 0 0 8px;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  letter-spacing: -0.04em;
+  margin-bottom: 8px;
+}
+
+.subtitle,
+.card-heading p {
+  color: #64748b;
+  margin-bottom: 0;
+}
+
+.refresh-button,
+.text-button {
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.refresh-button {
+  background: #172033;
+  color: white;
+  padding: 12px 16px;
+}
+
+.refresh-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.orders-card {
+  background: #fff;
+  border: 1px solid #e7ebf2;
+  border-radius: 18px;
+  box-shadow: 0 12px 35px rgb(15 23 42 / 4%);
+  overflow: hidden;
+}
+
+.card-heading {
+  padding: 24px 26px;
+}
+
+.card-heading h2 {
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+}
+
+.card-heading p {
+  font-size: 0.88rem;
+}
+
+.live-indicator {
+  align-items: center;
+  color: #64748b;
+  display: inline-flex;
+  font-size: 0.8rem;
+  gap: 8px;
+}
+
+.live-indicator span {
+  background: #22c55e;
+  border-radius: 50%;
+  height: 8px;
+  width: 8px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  min-width: 1050px;
+  text-align: left;
+  width: 100%;
+}
+
+thead {
+  background: #f8fafc;
+}
+
+th,
+td {
+  border-top: 1px solid #edf0f5;
+  padding: 16px 20px;
+  vertical-align: middle;
+}
+
+th {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+td {
+  color: #475569;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.order-id,
+.customer-name {
+  color: #172033;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.status-badge {
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.status-pending {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.status-preparing {
+  background: #fffbeb;
+  color: #a16207;
+}
+
+.status-in-progress {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.status-delivering {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.status-ready {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.status-delivered {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.status-cancelled {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.message-state {
+  border-top: 1px solid #edf0f5;
+  color: #64748b;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.error-state {
+  color: #b91c1c;
+}
+
+.error-state p {
+  margin-bottom: 10px;
+}
+
+.text-button {
+  padding: 6px;
+}
+
+.row-actions {
+  min-width: 240px;
+  white-space: nowrap;
+}
+
+.row-actions select {
+  font-size: .75rem;
+  min-height: 34px;
+  padding: 5px;
+}
+
+@media (max-width: 600px) {
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .order-form {
+    grid-template-columns: 1fr;
+  }
+
+  .create-card {
+    padding: 20px;
+  }
+}

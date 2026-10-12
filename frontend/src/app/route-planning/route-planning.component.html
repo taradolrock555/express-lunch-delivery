@@ -1,0 +1,122 @@
+<section class="planner">
+  <header class="page-heading">
+    <div>
+      <p class="eyebrow">DELIVERY ROUTE PLANNER</p>
+      <h1>วางแผนเส้นทางจัดส่ง</h1>
+      <p class="subtitle">จำลองการแบ่งออเดอร์ให้ไรเดอร์และประเมินเวลา / ต้นทุน</p>
+    </div>
+    <button class="primary-button" type="button" (click)="recalculate()" [disabled]="isLoading()">
+      {{ isLoading() ? 'กำลังคำนวณ...' : 'คำนวณเส้นทางใหม่' }}
+    </button>
+  </header>
+
+  <aside class="demo-note">
+    <strong>โหมดข้อมูลจำลอง:</strong>
+    เส้นบนแผนที่เป็นภาพประกอบจากพิกัดเส้นตรง ไม่ใช่เส้นทางถนนหรือผลจากบริการแผนที่จริง
+    เวลาออกส่ง 11:30 น. และเวลาส่งถึงเป้าหมาย 12:30 น.
+  </aside>
+
+  @if (errorMessage(); as error) {
+    <div class="notice error" role="alert">
+      {{ error }}
+      <button type="button" class="text-button" (click)="loadPlan(strategy())">ลองคำนวณอีกครั้ง</button>
+    </div>
+  }
+
+  @if (isLoading()) {
+    <div class="state-card" role="status">กำลังจัดกลุ่มออเดอร์และคำนวณตัวอย่าง...</div>
+  } @else if (plan(); as currentPlan) {
+    <section class="summary-grid" aria-label="สรุปการจัดส่งและต้นทุน">
+      <article class="metric-card">
+        <span>ข้าวกล่องทั้งหมด</span><strong>{{ currentPlan.totals.totalBoxes }}</strong><small>กล่อง</small>
+      </article>
+      <article class="metric-card">
+        <span>ระยะทางรวมโดยประมาณ</span><strong>{{ currentPlan.totals.distanceKm }}</strong><small>กิโลเมตร</small>
+      </article>
+      <article class="metric-card">
+        <span>ค่าส่งประมาณ</span><strong>{{ currentPlan.totals.deliveryCost | number:'1.2-2' }}</strong><small>บาท</small>
+      </article>
+      <article class="metric-card" [class.negative]="currentPlan.totals.profit < 0">
+        <span>กำไรหลังหักต้นทุนจำลอง</span><strong>{{ currentPlan.totals.profit | number:'1.2-2' }}</strong><small>บาท</small>
+      </article>
+    </section>
+
+    <section class="map-card">
+      <div class="section-heading">
+        <div>
+          <h2>ภาพรวมเส้นทางและจุดส่ง</h2>
+          <p>ร้าน: {{ currentPlan.shop.name }} · {{ currentPlan.shop.address }}</p>
+        </div>
+        <span class="strategy-badge">{{ currentPlan.strategy === 'nearest' ? 'เรียงจุดใกล้ก่อน' : 'เส้นทางทางเลือก' }}</span>
+      </div>
+      <div class="map-canvas" role="img" aria-label="ภาพจำลองเส้นทางแยกสีตามไรเดอร์">
+        <div class="map-label">แผนภาพพิกัดจำลอง · ไม่ใช่แผนที่ถนนจริง</div>
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="none" aria-hidden="true">
+          <g class="map-grid">
+            <path d="M0 100H1000 M0 200H1000 M0 300H1000 M0 400H1000 M200 0V500 M400 0V500 M600 0V500 M800 0V500" />
+          </g>
+          @for (route of currentPlan.routes; track route.rider.id; let routeIndex = $index) {
+            <polyline
+              [attr.points]="routePolyline(route)"
+              [attr.stroke]="colorForRoute(routeIndex)"
+              class="route-line"
+            />
+            @for (stop of route.stops; track stop.id; let stopIndex = $index) {
+              <circle
+                [attr.cx]="mapPoint(stop.latitude, stop.longitude).x"
+                [attr.cy]="mapPoint(stop.latitude, stop.longitude).y"
+                [attr.fill]="colorForRoute(routeIndex)"
+                r="15"
+              />
+              <text
+                [attr.x]="mapPoint(stop.latitude, stop.longitude).x"
+                [attr.y]="mapPoint(stop.latitude, stop.longitude).y + 5"
+                class="stop-number"
+              >{{ stopIndex + 1 }}</text>
+            }
+          }
+          <circle [attr.cx]="mapPoint(currentPlan.shop.latitude, currentPlan.shop.longitude).x" [attr.cy]="mapPoint(currentPlan.shop.latitude, currentPlan.shop.longitude).y" class="shop-marker" r="12" />
+          <text [attr.x]="mapPoint(currentPlan.shop.latitude, currentPlan.shop.longitude).x + 16" [attr.y]="mapPoint(currentPlan.shop.latitude, currentPlan.shop.longitude).y - 12" class="shop-label">ร้าน</text>
+        </svg>
+      </div>
+      <div class="legend">
+        @for (route of currentPlan.routes; track route.rider.id; let routeIndex = $index) {
+          <span><i [style.background]="colorForRoute(routeIndex)"></i>{{ route.rider.name }} · {{ route.stops.length }} จุด</span>
+        } @empty {
+          <span>ยังไม่มีออเดอร์พร้อมจัดส่ง</span>
+        }
+      </div>
+    </section>
+
+    <section class="routes-grid" aria-label="รายละเอียดเส้นทางแต่ละไรเดอร์">
+      @for (route of currentPlan.routes; track route.rider.id; let routeIndex = $index) {
+        <article class="route-card">
+          <header>
+            <span class="route-color" [style.background]="colorForRoute(routeIndex)"></span>
+            <div><h2>{{ route.rider.name }}</h2><small>เลขใบงาน {{ route.rider.jobCode }}</small></div>
+            <strong class="arrival" [class.late]="!route.meetsDeadline">{{ route.estimatedArrival }} น.</strong>
+          </header>
+          <p class="route-stats">{{ route.stops.length }} ออเดอร์ · {{ route.totalBoxes }} กล่อง · {{ route.distanceKm }} กม. · {{ route.travelMinutes }} นาที</p>
+          <ol>
+            @for (stop of route.stops; track stop.id) {
+              <li><strong>{{ stop.customerName }}</strong><span>{{ stop.address }} · {{ stop.totalBoxes }} กล่อง</span></li>
+            }
+          </ol>
+          <footer>
+            <span>ค่าเที่ยว/ระยะทาง <strong>{{ route.deliveryCost | number:'1.2-2' }} บาท</strong></span>
+            <span>กำไรสุทธิจำลอง <strong [class.loss]="route.profit < 0">{{ route.profit | number:'1.2-2' }} บาท</strong></span>
+          </footer>
+          @if (!route.meetsDeadline) {
+            <p class="late-note">เวลาถึงโดยประมาณเกิน 12:30 น.</p>
+          }
+        </article>
+      } @empty {
+        <div class="state-card">ไม่มีออเดอร์ที่มีสถานะ “พร้อมจัดส่ง” สำหรับวางแผน</div>
+      }
+    </section>
+    <p class="formula-note">
+      สูตรจำลอง: ขาย 65 บาท/กล่อง − ต้นทุนอาหาร 40 บาท/กล่อง − (15 บาท/เที่ยว + 2 บาท/กม./กล่อง);
+      สมมติความเร็ว 30 กม./ชม. และไม่เกิน 3 ออเดอร์ต่อไรเดอร์ / 3 กล่องต่อออเดอร์
+    </p>
+  }
+</section>

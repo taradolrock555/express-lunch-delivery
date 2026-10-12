@@ -1,0 +1,25 @@
+<header class="topbar">
+  <a class="brand" routerLink="/owner-dashboard" aria-label="ไปหน้าแดชบอร์ด">
+    <span class="brand-mark" aria-hidden="true">R</span>
+    <span>Rider Route</span>
+  </a>
+
+  <nav class="main-nav" aria-label="เมนูหลัก">
+    <a routerLink="/owner-dashboard" routerLinkActive="active" ariaCurrentWhenActive="page">
+      จัดการออเดอร์
+    </a>
+    <a routerLink="/customers" routerLinkActive="active" ariaCurrentWhenActive="page">
+      ลูกค้า
+    </a>
+    <a routerLink="/route-planning" routerLinkActive="active" ariaCurrentWhenActive="page">
+      วางแผนเส้นทาง
+    </a>
+    <a routerLink="/rider-tasks" routerLinkActive="active" ariaCurrentWhenActive="page">
+      คิวงานไรเดอร์
+    </a>
+  </nav>
+</header>
+
+<main class="page-shell">
+  <router-outlet />
+</main>
