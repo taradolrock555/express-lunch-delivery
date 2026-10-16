@@ -1,4 +1,10 @@
-const mockData = require('../data/mockData');
+const { db } = require('../config/firebase');
+const asyncHandler = require('../utils/asyncHandler');
+const { invalidateRoutePlan } = require('./routeController');
+
+const customers = db.collection('customers');
+const orders = db.collection('orders');
+const counters = db.collection('_metadata').doc('counters');
 
 function validateCustomer(body) {
   const input = body && typeof body === 'object' ? body : {};
@@ -21,50 +27,68 @@ function validateCustomer(body) {
   return { customer: { name, phone, address, latitude, longitude } };
 }
 
-function getCustomers(req, res) {
-  res.json({ success: true, data: mockData.customers });
-}
+const getCustomers = asyncHandler(async (req, res) => {
+  const snapshot = await customers.get();
+  const data = snapshot.docs
+    .map((document) => document.data())
+    .sort((a, b) => a.id - b.id);
+  res.json({ success: true, data });
+});
 
-function createCustomer(req, res) {
+const createCustomer = asyncHandler(async (req, res) => {
   const result = validateCustomer(req.body);
   if (result.error) {
     return res.status(400).json({ message: result.error });
   }
 
-  const customer = { id: mockData.nextCustomerId++, ...result.customer };
-  mockData.customers.push(customer);
+  let customer;
+  await db.runTransaction(async (transaction) => {
+    const counterSnapshot = await transaction.get(counters);
+    const id = Number(counterSnapshot.data()?.nextCustomerId) || 1;
+    customer = { id, ...result.customer };
+    transaction.set(customers.doc(String(id)), customer);
+    transaction.set(counters, { nextCustomerId: id + 1 }, { merge: true });
+  });
+  invalidateRoutePlan();
   return res.status(201).json({ success: true, data: customer });
-}
+});
 
-function updateCustomer(req, res) {
-  const customer = mockData.customers.find((item) => item.id === Number(req.params.id));
-  if (!customer) {
-    return res.status(404).json({ message: 'ไม่พบข้อมูลลูกค้า' });
-  }
-
+const updateCustomer = asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
   const result = validateCustomer(req.body);
   if (result.error) {
     return res.status(400).json({ message: result.error });
   }
 
-  Object.assign(customer, result.customer);
-  mockData.currentRoutePlan = null;
-  return res.json({ success: true, data: customer });
-}
-
-function deleteCustomer(req, res) {
-  const customerId = Number(req.params.id);
-  const index = mockData.customers.findIndex((item) => item.id === customerId);
-  if (index === -1) {
+  const reference = customers.doc(String(id));
+  const snapshot = await reference.get();
+  if (!snapshot.exists) {
     return res.status(404).json({ message: 'ไม่พบข้อมูลลูกค้า' });
   }
-  if (mockData.orders.some((item) => item.customerId === customerId)) {
+
+  const customer = { ...snapshot.data(), ...result.customer };
+  await reference.set(customer);
+  invalidateRoutePlan();
+  return res.json({ success: true, data: customer });
+});
+
+const deleteCustomer = asyncHandler(async (req, res) => {
+  const customerId = Number(req.params.id);
+  const reference = customers.doc(String(customerId));
+  const snapshot = await reference.get();
+  if (!snapshot.exists) {
+    return res.status(404).json({ message: 'ไม่พบข้อมูลลูกค้า' });
+  }
+
+  const orderSnapshot = await orders.where('customerId', '==', customerId).limit(1).get();
+  if (!orderSnapshot.empty) {
     return res.status(409).json({ message: 'ลบไม่ได้ เนื่องจากลูกค้ามีออเดอร์อยู่ในระบบ' });
   }
 
-  const [deletedCustomer] = mockData.customers.splice(index, 1);
-  mockData.currentRoutePlan = null;
+  const deletedCustomer = snapshot.data();
+  await reference.delete();
+  invalidateRoutePlan();
   return res.json({ success: true, data: deletedCustomer });
-}
+});
 
 module.exports = { getCustomers, createCustomer, updateCustomer, deleteCustomer };

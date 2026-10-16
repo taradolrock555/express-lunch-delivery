@@ -17,15 +17,11 @@ h2 { font-size: 1.05rem; margin-bottom: 6px; }
 .map-card { overflow: hidden; padding: 20px; }
 .section-heading { margin-bottom: 16px; }
 .strategy-badge { background: #eef2ff; border-radius: 999px; color: #3730a3; font-size: .78rem; font-weight: 650; padding: 7px 10px; white-space: nowrap; }
-.map-canvas { background-color: #f1f5f2; border: 1px solid #e2e8e4; border-radius: 12px; min-height: 270px; overflow: hidden; position: relative; }
-.map-label { background: rgb(255 255 255 / 88%); border-radius: 6px; color: #64748b; font-size: .7rem; left: 10px; padding: 5px 7px; position: absolute; top: 10px; z-index: 1; }
-svg { height: 320px; width: 100%; }
-.map-grid path { fill: none; stroke: #dbe4dc; stroke-dasharray: 4 8; stroke-width: 1; }
-.route-line { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 5; }
-circle { stroke: #fff; stroke-width: 3; }
-.shop-marker { fill: #172033; }
-.stop-number, .shop-label { fill: #fff; font-size: 12px; font-weight: 700; pointer-events: none; text-anchor: middle; }
-.shop-label { fill: #172033; text-anchor: start; }
+.optimization-comparisons span.selected { color: #166534; font-weight: 650; }
+.leaflet-map { border: 1px solid #e2e8e4; border-radius: 12px; height: 420px; overflow: hidden; width: 100%; z-index: 0; }
+.map-sources { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 14px 4px 0; }
+.map-sources span { align-items: center; color: #475569; display: inline-flex; font-size: .8rem; gap: 7px; }
+.map-sources i { border-radius: 50%; display: inline-block; height: 11px; width: 11px; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 14px 4px 0; }
 .legend span { align-items: center; color: #475569; display: inline-flex; font-size: .8rem; gap: 7px; }
 .legend i, .route-color { border-radius: 50%; display: inline-block; flex: 0 0 auto; height: 11px; width: 11px; }

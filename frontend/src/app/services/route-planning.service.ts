@@ -3,6 +3,18 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
 export type RouteStrategy = 'nearest' | 'alternative';
+export type RouteOptimizationMethod =
+  | 'local-search'
+  | 'near-to-far round-robin'
+  | 'far-to-near round-robin'
+  | 'near-to-far grouped'
+  | 'far-to-near grouped';
+
+export interface RouteOptimizationComparison {
+  method: RouteOptimizationMethod;
+  distanceKm: number;
+  deliveryCost: number;
+}
 
 export interface Location {
   name: string;
@@ -26,6 +38,11 @@ export interface RiderRoute {
   rider: { id: number; name: string; jobCode: string; status: string };
   stops: RouteStop[];
   totalBoxes: number;
+  geometry?: {
+    type: 'LineString';
+    coordinates: [number, number][];
+  };
+  distanceSource?: 'osrm' | 'haversine';
   distanceKm: number;
   travelMinutes: number;
   revenue: number;
@@ -38,6 +55,10 @@ export interface RiderRoute {
 
 export interface RoutePlan {
   strategy: RouteStrategy;
+  optimizationSource?: 'osrm' | 'haversine';
+  optimizationMethod?: RouteOptimizationMethod;
+  optimizationComparisonMethod?: 'route' | 'table';
+  optimizationComparisons?: RouteOptimizationComparison[];
   shop: Location;
   pricing: {
     departureTime: string;

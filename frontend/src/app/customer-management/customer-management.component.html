@@ -17,7 +17,7 @@
   <section class="form-card">
     <div class="section-heading">
       <h2>{{ editingId === null ? 'เพิ่มลูกค้า' : 'แก้ไขข้อมูลลูกค้า' }}</h2>
-      <span>พิกัดใช้จำลองตำแหน่งบนแผนที่</span>
+      <span>คลิกแผนที่เพื่อเลือกพิกัด หรือค้นหาจากที่อยู่ด้วย Nominatim</span>
     </div>
     <form (ngSubmit)="saveCustomer()">
       <div class="form-grid">
@@ -33,13 +33,28 @@
           ที่อยู่จัดส่ง
           <input name="address" [(ngModel)]="draft.address" required maxlength="255" />
         </label>
+        <div class="address-search wide">
+          <button class="secondary-button" type="button" (click)="searchAddress()" [disabled]="isSearchingLocation()">
+            {{ isSearchingLocation() ? 'กำลังค้นหา...' : 'ค้นหาที่อยู่บนแผนที่' }}
+          </button>
+          <span>ใช้ OpenStreetMap Nominatim; กดค้นหาเองหลังกรอกที่อยู่</span>
+        </div>
+        @if (locationMessage(); as locationStatus) {
+          <p class="location-message wide" role="status">{{ locationStatus }}</p>
+        }
+        <div
+          #customerMap
+          class="customer-map wide"
+          role="application"
+          aria-label="แผนที่เลือกพิกัดลูกค้า คลิกเพื่อกำหนดละติจูดและลองจิจูด"
+        ></div>
         <label>
           ละติจูด
-          <input name="latitude" type="number" step="0.000001" min="-90" max="90" [(ngModel)]="draft.latitude" required />
+          <input name="latitude" type="number" step="0.000001" min="-90" max="90" [(ngModel)]="draft.latitude" (ngModelChange)="updateCustomerMarker()" required />
         </label>
         <label>
           ลองจิจูด
-          <input name="longitude" type="number" step="0.000001" min="-180" max="180" [(ngModel)]="draft.longitude" required />
+          <input name="longitude" type="number" step="0.000001" min="-180" max="180" [(ngModel)]="draft.longitude" (ngModelChange)="updateCustomerMarker()" required />
         </label>
       </div>
       <div class="form-actions">

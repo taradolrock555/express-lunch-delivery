@@ -3,6 +3,7 @@ require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
 const customerRoutes = require('./routes/customerRoutes');
+const geoRoutes = require('./routes/geoRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const routeRoutes = require('./routes/routeRoutes');
 const riderRoutes = require('./routes/riderRoutes');
@@ -19,6 +20,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/geo', geoRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/riders', riderRoutes);
 
@@ -28,7 +30,7 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ message: 'Internal server error' });
+  res.status(err.statusCode || 500).json({ message: 'Internal server error' });
 });
 
 app.listen(port, () => {

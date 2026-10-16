@@ -11,6 +11,9 @@ h2 { font-size: 1.05rem; margin: 0; }
 .section-heading { margin-bottom: 18px; }
 .section-heading span { font-size: .82rem; }
 .form-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.address-search { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+.address-search span, .location-message { color: #64748b; font-size: .8rem; margin: 0; }
+.customer-map { border: 1px solid #d8e0eb; border-radius: 10px; height: 320px; overflow: hidden; width: 100%; z-index: 0; }
 label { color: #475569; display: grid; font-size: .84rem; font-weight: 600; gap: 7px; }
 input { border: 1px solid #d8e0eb; border-radius: 9px; color: #172033; font: inherit; min-height: 42px; padding: 9px 11px; width: 100%; }
 input:focus { border-color: #4169e1; outline: 2px solid rgb(65 105 225 / 15%); }
@@ -20,6 +23,7 @@ input:focus { border-color: #4169e1; outline: 2px solid rgb(65 105 225 / 15%); }
 .primary-button { background: #172033; color: #fff; }
 .primary-button:disabled { cursor: wait; opacity: .65; }
 .secondary-button { background: #eef2f7; color: #334155; }
+.secondary-button:disabled { cursor: wait; opacity: .65; }
 .table-card { padding-top: 22px; }
 .table-card > .section-heading { padding: 0 22px; }
 .table-scroll { overflow-x: auto; }

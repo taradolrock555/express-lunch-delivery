@@ -15,7 +15,7 @@ export class RiderTasks {
   protected readonly task = signal<RiderTask | null>(null);
   protected readonly isLoading = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
-  protected jobCode = 'JOB-20261012-001';
+  protected jobCode = 'JOB-001';
 
   protected findTask(): void {
     const jobCode = this.jobCode.trim();

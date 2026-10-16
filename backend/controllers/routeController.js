@@ -1,4 +1,10 @@
-const mockData = require('../data/mockData');
+const { db } = require('../config/firebase');
+const { pricing, shop } = require('../config/delivery');
+const asyncHandler = require('../utils/asyncHandler');
+const { requestOsrmRoute, requestOsrmTable } = require('./geoController');
+const { createDistanceOrderSeeds, optimizeRoutes, permutations } = require('../utils/routeOptimizer');
+
+let currentRoutePlan = null;
 
 const radians = (degrees) => (degrees * Math.PI) / 180;
 
@@ -15,14 +21,50 @@ function distanceKm(from, to) {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
 
-function orderWithCustomer(order) {
-  const customer = mockData.customers.find((item) => item.id === order.customerId);
+function timeOfDayMinutes(time) {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function deliveryWindowMinutes() {
+  const departure = timeOfDayMinutes(pricing.departureTime);
+  let deadline = timeOfDayMinutes(pricing.deadlineTime);
+  if (deadline < departure) {
+    deadline += 24 * 60;
+  }
+  return deadline - departure;
+}
+
+function sortById(snapshot) {
+  return snapshot.docs
+    .map((document) => document.data())
+    .sort((a, b) => a.id - b.id);
+}
+
+async function loadData() {
+  const [customers, orders, riders] = await Promise.all([
+    db.collection('customers').get(),
+    db.collection('orders').get(),
+    db.collection('riders').get()
+  ]);
+
+  return {
+    shop,
+    pricing,
+    customers: sortById(customers),
+    orders: sortById(orders),
+    riders: sortById(riders)
+  };
+}
+
+function orderWithCustomer(order, data) {
+  const customer = data.customers.find((item) => item.id === order.customerId);
   return {
     ...order,
     customerName: customer ? customer.name : 'ไม่พบข้อมูลลูกค้า',
     address: customer ? customer.address : '',
-    latitude: customer ? customer.latitude : mockData.shop.latitude,
-    longitude: customer ? customer.longitude : mockData.shop.longitude
+    latitude: customer ? customer.latitude : data.shop.latitude,
+    longitude: customer ? customer.longitude : data.shop.longitude
   };
 }
 
@@ -32,7 +74,7 @@ function distributeOrders(orders, riders, strategy) {
     if (strategy === 'alternative') {
       return b.id - a.id;
     }
-    return distanceKm(mockData.shop, a) - distanceKm(mockData.shop, b);
+    return distanceKm(shop, a) - distanceKm(shop, b);
   });
 
   sortedOrders.forEach((order, index) => {
@@ -49,7 +91,7 @@ function orderStops(group, strategy) {
   }
 
   const ordered = [];
-  let current = mockData.shop;
+  let current = shop;
   while (remaining.length > 0) {
     let closestIndex = 0;
     for (let index = 1; index < remaining.length; index += 1) {
@@ -64,50 +106,74 @@ function orderStops(group, strategy) {
   return ordered;
 }
 
-function makeRoute(group, strategy) {
-  const stops = orderStops(group, strategy).map((order, index) => ({
-    ...orderWithCustomer(order),
+async function makeRoute(group, strategy, data, routeMetricsCache) {
+  const candidateOrders = strategy === 'alternative'
+    ? permutations(group.orders)
+    : [orderStops(group, strategy)];
+  const routeCandidates = await Promise.all(candidateOrders.map(async (orders) => {
+    const cacheKey = orders.map((order) => order.id).join(',');
+    if (!routeMetricsCache.has(cacheKey)) {
+      routeMetricsCache.set(cacheKey, requestOsrmRoute([
+        data.shop,
+        ...orders
+      ].map(({ latitude, longitude }) => ({ latitude, longitude }))));
+    }
+    return { orders, metrics: await routeMetricsCache.get(cacheKey) };
+  }));
+  const bestCandidate = routeCandidates.reduce((best, candidate) =>
+    !best ||
+    candidate.metrics.distanceKm < best.metrics.distanceKm ||
+    (
+      candidate.metrics.distanceKm === best.metrics.distanceKm &&
+      candidate.metrics.durationMinutes < best.metrics.durationMinutes
+    )
+      ? candidate
+      : best
+  , null);
+  const stops = bestCandidate.orders.map((order, index) => ({
+    ...orderWithCustomer(order, data),
     sequenceNumber: index + 1
   }));
 
-  let previous = mockData.shop;
-  const distance = stops.reduce((sum, stop) => {
-    const legDistance = distanceKm(previous, stop);
-    previous = stop;
-    return sum + legDistance;
-  }, 0);
+  const routeMetrics = bestCandidate.metrics;
+  const distance = routeMetrics.distanceKm;
   const totalBoxes = stops.reduce((sum, stop) => sum + stop.totalBoxes, 0);
-  const travelMinutes = (distance / mockData.pricing.riderSpeedKmh) * 60;
-  const revenue = totalBoxes * mockData.pricing.salePricePerBox;
-  const foodCost = totalBoxes * mockData.pricing.foodCostPerBox;
+  const travelMinutes = (distance / pricing.riderSpeedKmh) * 60;
+  const revenue = totalBoxes * pricing.salePricePerBox;
+  const foodCost = totalBoxes * pricing.foodCostPerBox;
   const deliveryCost = stops.length > 0
-    ? mockData.pricing.riderFeePerTrip +
-      distance * mockData.pricing.riderCostPerKmPerBox * totalBoxes
+    ? pricing.riderFeePerTrip +
+      distance * pricing.riderCostPerKmPerBox * totalBoxes
     : 0;
-  const arrival = new Date(`2026-10-12T${mockData.pricing.departureTime}:00`);
-  arrival.setMinutes(arrival.getMinutes() + Math.ceil(travelMinutes));
+  const departureMinutes = timeOfDayMinutes(pricing.departureTime);
+  const arrivalMinutes = departureMinutes + Math.ceil(travelMinutes);
+  const arrivalClockMinutes = arrivalMinutes % (24 * 60);
+  const arrivalHours = Math.floor(arrivalClockMinutes / 60);
+  const arrivalMinute = arrivalClockMinutes % 60;
 
   return {
     rider: group.rider,
     stops,
     totalBoxes,
+    geometry: routeMetrics.geometry,
+    distanceSource: routeMetrics.source,
     distanceKm: Number(distance.toFixed(2)),
     travelMinutes: Math.ceil(travelMinutes),
     revenue: Number(revenue.toFixed(2)),
     foodCost: Number(foodCost.toFixed(2)),
     deliveryCost: Number(deliveryCost.toFixed(2)),
     profit: Number((revenue - foodCost - deliveryCost).toFixed(2)),
-    estimatedArrival: `${String(arrival.getHours()).padStart(2, '0')}:${String(arrival.getMinutes()).padStart(2, '0')}`,
-    meetsDeadline: arrival.getHours() < 12 || (arrival.getHours() === 12 && arrival.getMinutes() <= 30)
+    estimatedArrival: `${String(arrivalHours).padStart(2, '0')}:${String(arrivalMinute).padStart(2, '0')}`,
+    meetsDeadline: Math.ceil(travelMinutes) <= deliveryWindowMinutes()
   };
 }
 
-function buildPreview(strategy) {
-  const readyOrders = mockData.orders
+async function buildPreview(strategy, data) {
+  const readyOrders = data.orders
     .filter((order) => order.status === 'ready')
-    .map(orderWithCustomer);
-  const availableRiders = mockData.riders.filter((rider) => rider.status === 'available');
-  const capacity = availableRiders.length * mockData.pricing.maxOrdersPerRider;
+    .map((order) => orderWithCustomer(order, data));
+  const availableRiders = data.riders.filter((rider) => rider.status === 'available');
+  const capacity = availableRiders.length * pricing.maxOrdersPerRider;
 
   if (readyOrders.length > 0 && availableRiders.length === 0) {
     return { error: 'ไม่มีไรเดอร์ที่พร้อมรับงานในขณะนี้', status: 409 };
@@ -119,10 +185,87 @@ function buildPreview(strategy) {
     };
   }
 
-  const groups = readyOrders.length > 0
-    ? distributeOrders(readyOrders, availableRiders, strategy)
-    : [];
-  const routes = groups.filter((group) => group.orders.length > 0).map((group) => makeRoute(group, strategy));
+  let groups = [];
+  const routeMetricsCache = new Map();
+  let optimizationSource;
+  let optimizationMethod;
+  let optimizationComparisons;
+  let optimizationComparisonMethod;
+  let plannedRoutes;
+  if (readyOrders.length > 0 && strategy === 'alternative') {
+    const table = await requestOsrmTable([
+      data.shop,
+      ...readyOrders
+    ].map(({ latitude, longitude }) => ({ latitude, longitude })));
+    const seedCandidates = createDistanceOrderSeeds(
+      readyOrders,
+      availableRiders,
+      table.distanceKm,
+      pricing.maxOrdersPerRider
+    );
+    const optimization = optimizeRoutes(
+      readyOrders,
+      availableRiders,
+      table.distanceKm,
+      pricing,
+      deliveryWindowMinutes(),
+      seedCandidates
+    );
+    if (optimization.error) {
+      return { error: optimization.error, status: 409 };
+    }
+    optimizationSource = table.source;
+    if (readyOrders.length <= 9) {
+      const evaluatedCandidates = await Promise.all(optimization.solutions.map(async (solution) => {
+        const candidateGroups = solution.routes.map((route, index) => ({
+          rider: availableRiders[index],
+          orders: route.orderIndexes.map((orderIndex) => readyOrders[orderIndex])
+        }));
+        const routes = await Promise.all(
+          candidateGroups.map((group) => makeRoute(group, strategy, data, routeMetricsCache))
+        );
+        return {
+          method: solution.method,
+          routes,
+          distanceKm: routes.reduce((total, route) => total + route.distanceKm, 0),
+          deliveryCost: routes.reduce((total, route) => total + route.deliveryCost, 0),
+          meetsDeadline: routes.every((route) => route.meetsDeadline)
+        };
+      }));
+      optimizationComparisons = evaluatedCandidates.map((candidate) => ({
+        method: candidate.method,
+        distanceKm: Number(candidate.distanceKm.toFixed(2)),
+        deliveryCost: Number(candidate.deliveryCost.toFixed(2))
+      }));
+      const feasibleCandidates = evaluatedCandidates.filter((candidate) => candidate.meetsDeadline);
+      if (feasibleCandidates.length === 0) {
+        return {
+          error: 'ไม่สามารถจัดออเดอร์ให้ทุกเส้นทางถึงภายใน 12:30 น. ด้วยจำนวนไรเดอร์ที่พร้อมได้',
+          status: 409
+        };
+      }
+      const selectedCandidate = feasibleCandidates.reduce((best, candidate) =>
+        Number(candidate.deliveryCost.toFixed(2)) < Number(best.deliveryCost.toFixed(2))
+          ? candidate
+          : best
+      );
+      optimizationMethod = selectedCandidate.method;
+      plannedRoutes = selectedCandidate.routes;
+      optimizationComparisonMethod = 'route';
+    } else {
+      groups = optimization.routes;
+      optimizationMethod = optimization.method;
+      optimizationComparisons = optimization.comparisons;
+      optimizationComparisonMethod = 'table';
+    }
+  } else if (readyOrders.length > 0) {
+    groups = distributeOrders(readyOrders, availableRiders, strategy)
+      .filter((group) => group.orders.length > 0);
+  }
+
+  const routes = plannedRoutes || await Promise.all(
+    groups.map((group) => makeRoute(group, strategy, data, routeMetricsCache))
+  );
   const totals = routes.reduce((result, route) => ({
     totalBoxes: result.totalBoxes + route.totalBoxes,
     distanceKm: result.distanceKm + route.distanceKm,
@@ -150,34 +293,39 @@ function buildPreview(strategy) {
   return {
     data: {
       strategy,
-      shop: mockData.shop,
-      pricing: mockData.pricing,
+      shop: data.shop,
+      pricing,
+      ...(optimizationSource ? { optimizationSource } : {}),
+      ...(optimizationMethod ? { optimizationMethod } : {}),
+      ...(optimizationComparisons ? { optimizationComparisons } : {}),
+      ...(optimizationComparisonMethod ? { optimizationComparisonMethod } : {}),
       totals,
-      routes
+      routes: plannedRoutes || routes
     }
   };
 }
 
-function previewRoutes(req, res) {
+const previewRoutes = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const strategy = body.strategy === 'alternative' ? 'alternative' : 'nearest';
-  const result = buildPreview(strategy);
+  const result = await buildPreview(strategy, await loadData());
   if (result.error) {
     return res.status(result.status).json({ message: result.error });
   }
-  mockData.currentRoutePlan = result.data;
+  currentRoutePlan = result.data;
   return res.json({ success: true, data: result.data });
-}
+});
 
-function getRiderTask(req, res) {
-  const rider = mockData.riders.find((item) => item.jobCode.toLowerCase() === req.params.jobCode.toLowerCase());
+const getRiderTask = asyncHandler(async (req, res) => {
+  const data = await loadData();
+  const rider = data.riders.find((item) => item.jobCode.toLowerCase() === req.params.jobCode.toLowerCase());
   if (!rider) {
     return res.status(404).json({ message: 'ไม่พบเลขใบงาน กรุณาตรวจสอบรหัสอีกครั้ง' });
   }
 
-  let routePlan = mockData.currentRoutePlan;
+  let routePlan = currentRoutePlan;
   if (!routePlan) {
-    const result = buildPreview('nearest');
+    const result = await buildPreview('nearest', data);
     if (result.error) {
       return res.status(result.status).json({ message: result.error });
     }
@@ -197,6 +345,10 @@ function getRiderTask(req, res) {
       ...route
     }
   });
+});
+
+function invalidateRoutePlan() {
+  currentRoutePlan = null;
 }
 
-module.exports = { previewRoutes, getRiderTask };
+module.exports = { previewRoutes, getRiderTask, invalidateRoutePlan };

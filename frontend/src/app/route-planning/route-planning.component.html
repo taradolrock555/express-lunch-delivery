@@ -11,9 +11,11 @@
   </header>
 
   <aside class="demo-note">
-    <strong>โหมดข้อมูลจำลอง:</strong>
-    เส้นบนแผนที่เป็นภาพประกอบจากพิกัดเส้นตรง ไม่ใช่เส้นทางถนนหรือผลจากบริการแผนที่จริง
-    เวลาออกส่ง 11:30 น. และเวลาส่งถึงเป้าหมาย 12:30 น.
+    <strong>แผนประหยัดต้นทุน:</strong>
+    ทดลองเรียงจุดจากใกล้ไปไกลและไกลไปใกล้ ทั้งแบบสลับไรเดอร์และจัดเป็นกลุ่ม
+    จากนั้นเปรียบเทียบระยะทางถนน OSRM และค่าส่งรวมภายใต้ข้อจำกัด
+    ไม่เกิน 3 ออเดอร์ต่อไรเดอร์และส่งถึงภายใน 12:30 น. หาก OSRM ใช้ไม่ได้จะใช้ Haversine
+    เวลาเดินทางประเมินจากความเร็ว 30 กม./ชม.
   </aside>
 
   @if (errorMessage(); as error) {
@@ -23,9 +25,7 @@
     </div>
   }
 
-  @if (isLoading()) {
-    <div class="state-card" role="status">กำลังจัดกลุ่มออเดอร์และคำนวณตัวอย่าง...</div>
-  } @else if (plan(); as currentPlan) {
+  @if (plan(); as currentPlan) {
     <section class="summary-grid" aria-label="สรุปการจัดส่งและต้นทุน">
       <article class="metric-card">
         <span>ข้าวกล่องทั้งหมด</span><strong>{{ currentPlan.totals.totalBoxes }}</strong><small>กล่อง</small>
@@ -47,37 +47,42 @@
           <h2>ภาพรวมเส้นทางและจุดส่ง</h2>
           <p>ร้าน: {{ currentPlan.shop.name }} · {{ currentPlan.shop.address }}</p>
         </div>
-        <span class="strategy-badge">{{ currentPlan.strategy === 'nearest' ? 'เรียงจุดใกล้ก่อน' : 'เส้นทางทางเลือก' }}</span>
+        <span class="strategy-badge">{{ currentPlan.strategy === 'nearest' ? 'เรียงจุดใกล้ก่อน (เปรียบเทียบ)' : 'แผนประหยัดต้นทุน' }}</span>
       </div>
-      <div class="map-canvas" role="img" aria-label="ภาพจำลองเส้นทางแยกสีตามไรเดอร์">
-        <div class="map-label">แผนภาพพิกัดจำลอง · ไม่ใช่แผนที่ถนนจริง</div>
-        <svg viewBox="0 0 1000 500" preserveAspectRatio="none" aria-hidden="true">
-          <g class="map-grid">
-            <path d="M0 100H1000 M0 200H1000 M0 300H1000 M0 400H1000 M200 0V500 M400 0V500 M600 0V500 M800 0V500" />
-          </g>
-          @for (route of currentPlan.routes; track route.rider.id; let routeIndex = $index) {
-            <polyline
-              [attr.points]="routePolyline(route)"
-              [attr.stroke]="colorForRoute(routeIndex)"
-              class="route-line"
-            />
-            @for (stop of route.stops; track stop.id; let stopIndex = $index) {
-              <circle
-                [attr.cx]="mapPoint(stop.latitude, stop.longitude).x"
-                [attr.cy]="mapPoint(stop.latitude, stop.longitude).y"
-                [attr.fill]="colorForRoute(routeIndex)"
-                r="15"
-              />
-              <text
-                [attr.x]="mapPoint(stop.latitude, stop.longitude).x"
-                [attr.y]="mapPoint(stop.latitude, stop.longitude).y + 5"
-                class="stop-number"
-              >{{ stopIndex + 1 }}</text>
-            }
+      @if (currentPlan.optimizationMethod) {
+        <p class="optimization-method">
+          วิธีจัดกลุ่มที่เลือก: {{ optimizationMethodLabel(currentPlan.optimizationMethod) }}
+          · คัดกลุ่มด้วย {{ currentPlan.optimizationSource === 'osrm' ? 'ระยะ OSRM Table' : 'ระยะ Haversine สำรอง' }}
+          · {{ currentPlan.optimizationComparisonMethod === 'route' ? 'เปรียบเทียบแต่ละแผนจากเส้นทาง OSRM จริง' : 'เปรียบเทียบเบื้องต้นจาก OSRM Table' }}
+        </p>
+      }
+      @if (currentPlan.optimizationComparisons; as comparisons) {
+        <div class="map-sources optimization-comparisons" aria-label="ผลเปรียบเทียบวิธีจัดกลุ่ม">
+          @for (comparison of comparisons; track comparison.method) {
+            <span [class.selected]="comparison.method === currentPlan.optimizationMethod">
+              {{ optimizationMethodLabel(comparison.method) }}:
+              {{ currentPlan.optimizationComparisonMethod === 'table' ? 'ประมาณ ' : '' }}{{ comparison.distanceKm | number:'1.2-2' }} กม. ·
+              ค่าส่ง {{ currentPlan.optimizationComparisonMethod === 'table' ? 'ประมาณ ' : '' }}{{ comparison.deliveryCost | number:'1.2-2' }} บาท
+            </span>
           }
-          <circle [attr.cx]="mapPoint(currentPlan.shop.latitude, currentPlan.shop.longitude).x" [attr.cy]="mapPoint(currentPlan.shop.latitude, currentPlan.shop.longitude).y" class="shop-marker" r="12" />
-          <text [attr.x]="mapPoint(currentPlan.shop.latitude, currentPlan.shop.longitude).x + 16" [attr.y]="mapPoint(currentPlan.shop.latitude, currentPlan.shop.longitude).y - 12" class="shop-label">ร้าน</text>
-        </svg>
+        </div>
+      }
+      <div
+        #routeMap
+        class="leaflet-map"
+        role="application"
+        aria-label="แผนที่เส้นทางจัดส่งและจุดส่ง แยกสีตามไรเดอร์"
+      ></div>
+      <div class="map-sources">
+        @if (currentPlan.optimizationSource) {
+          <span>ข้อมูลจัดแผน: {{ currentPlan.optimizationSource === 'osrm' ? 'ระยะทางถนน OSRM' : 'Haversine สำรอง' }}</span>
+        }
+        @for (route of currentPlan.routes; track route.rider.id; let routeIndex = $index) {
+          <span>
+            <i [style.background]="colorForRoute(routeIndex)"></i>
+            {{ route.rider.name }} · {{ route.distanceSource === 'osrm' ? 'เส้นทางถนน' : 'ระยะเส้นตรง (Haversine)' }}
+          </span>
+        }
       </div>
       <div class="legend">
         @for (route of currentPlan.routes; track route.rider.id; let routeIndex = $index) {
@@ -116,7 +121,10 @@
     </section>
     <p class="formula-note">
       สูตรจำลอง: ขาย 65 บาท/กล่อง − ต้นทุนอาหาร 40 บาท/กล่อง − (15 บาท/เที่ยว + 2 บาท/กม./กล่อง);
-      สมมติความเร็ว 30 กม./ชม. และไม่เกิน 3 ออเดอร์ต่อไรเดอร์ / 3 กล่องต่อออเดอร์
+      ระบบลองเรียงใกล้ไปไกลและไกลไปใกล้ แล้วเลือกแผนที่ค่าส่งรวมต่ำกว่า โดยทุกเส้นทางต้องถึงภายใน 1 ชั่วโมง
+      และไม่เกิน 3 ออเดอร์ต่อไรเดอร์ / 3 กล่องต่อออเดอร์
     </p>
+  } @else if (isLoading()) {
+    <div class="state-card" role="status">กำลังจัดกลุ่มออเดอร์และคำนวณตัวอย่าง...</div>
   }
 </section>
