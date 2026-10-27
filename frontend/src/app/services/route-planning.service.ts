@@ -1,8 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
+import { API_BASE_URL } from './api.config';
 
-export type RouteStrategy = 'nearest' | 'alternative';
+export type RouteStrategy = 'alternative' | 'nearest';
 export type RouteOptimizationMethod =
   | 'local-search'
   | 'near-to-far round-robin'
@@ -27,11 +28,14 @@ export interface RouteStop {
   id: number;
   customerId: number;
   customerName: string;
+  customerPhone: string;
   address: string;
+  deliveryAddress: string;
   latitude: number;
   longitude: number;
   totalBoxes: number;
   sequenceNumber: number;
+  assignmentMode: 'auto' | 'manual';
 }
 
 export interface RiderRoute {
@@ -53,8 +57,25 @@ export interface RiderRoute {
   meetsDeadline: boolean;
 }
 
+export interface RouteTotals {
+  totalBoxes: number;
+  distanceKm: number;
+  totalTravelMinutes: number;
+  revenue: number;
+  foodCost: number;
+  deliveryCost: number;
+  profit: number;
+  allRoutesMeetDeadline: boolean;
+  budget: number;
+  overBudget: boolean;
+  targetProfit: number;
+  belowTargetProfit: boolean;
+}
+
 export interface RoutePlan {
   strategy: RouteStrategy;
+  planDate: string;
+  publishedAt: string;
   optimizationSource?: 'osrm' | 'haversine';
   optimizationMethod?: RouteOptimizationMethod;
   optimizationComparisonMethod?: 'route' | 'table';
@@ -65,16 +86,11 @@ export interface RoutePlan {
     deadlineTime: string;
     maxBoxesPerOrder: number;
     maxOrdersPerRider: number;
+    maxCustomerDistanceKm: number;
+    dailyDeliveryBudget: number;
+    targetProfit: number;
   };
-  totals: {
-    totalBoxes: number;
-    distanceKm: number;
-    revenue: number;
-    foodCost: number;
-    deliveryCost: number;
-    profit: number;
-    allRoutesMeetDeadline: boolean;
-  };
+  totals: RouteTotals;
   routes: RiderRoute[];
 }
 
@@ -86,16 +102,30 @@ interface ApiResponse<T> {
 @Injectable({ providedIn: 'root' })
 export class RoutePlanningService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = 'http://localhost:3000/api/routes';
+  private readonly apiUrl = `${API_BASE_URL}/routes`;
 
   preview(strategy: RouteStrategy): Observable<RoutePlan> {
-    return this.http.post<ApiResponse<RoutePlan>>(`${this.apiUrl}/preview`, { strategy }).pipe(
-      map((response) => {
-        if (!response.success || !response.data) {
-          throw new Error('The route planning API returned an invalid response.');
-        }
-        return response.data;
-      }),
-    );
+    return this.http
+      .post<ApiResponse<RoutePlan>>(`${this.apiUrl}/preview`, { strategy })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  publish(strategy: RouteStrategy): Observable<RoutePlan> {
+    return this.http
+      .post<ApiResponse<RoutePlan>>(`${this.apiUrl}/publish`, { strategy })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getCurrent(): Observable<RoutePlan> {
+    return this.http
+      .get<ApiResponse<RoutePlan>>(`${this.apiUrl}/current`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  private unwrap<T>(response: ApiResponse<T>): T {
+    if (!response.success || !response.data) {
+      throw new Error('The route planning API returned an invalid response.');
+    }
+    return response.data;
   }
 }

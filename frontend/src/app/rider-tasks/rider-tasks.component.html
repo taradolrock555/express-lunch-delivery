@@ -1,21 +1,30 @@
 <section class="rider-page">
   <header class="page-heading">
     <div>
-      <p class="eyebrow">RIDER WORKSPACE</p>
-      <h1>ใบงานจัดส่ง</h1>
-      <p class="intro">กรอกเลขใบงานเพื่อดูคิวส่งอาหารและเปิดเส้นทางในแผนที่</p>
+      <p class="eyebrow">RIDER WORKSPACE · วันนี้ {{ todayLabel }}</p>
+      <h1>ใบงานจัดส่งของฉัน</h1>
+      <p class="intro">
+        กรอกรหัสพนักงานเพื่อดูคิวส่งอาหาร จำนวนกล่อง และลำดับจุดส่งของวันนี้
+      </p>
     </div>
   </header>
 
   <form class="lookup-card" (ngSubmit)="findTask()">
-    <label for="job-code">เลขใบงาน</label>
+    <label for="job-code">รหัสพนักงาน (Job Code)</label>
     <div class="lookup-row">
-      <input id="job-code" name="jobCode" [(ngModel)]="jobCode" placeholder="เช่น JOB-20261012-001" required />
+      <input
+        id="job-code"
+        name="jobCode"
+        [(ngModel)]="jobCode"
+        placeholder="เช่น JOB-001"
+        autocomplete="off"
+        required
+      />
       <button class="primary-button" type="submit" [disabled]="isLoading()">
-        {{ isLoading() ? 'กำลังค้นหา...' : 'ค้นหาใบงาน' }}
+        {{ isLoading() ? 'กำลังค้นหา...' : 'ดูงานของฉัน' }}
       </button>
     </div>
-    <small>รหัสตัวอย่าง: JOB-20261012-001, JOB-20261012-002 หรือ JOB-20261012-003</small>
+    <small>กรอกรหัสพนักงานที่เจ้าของร้านแจ้งให้ (เช่น JOB-001)</small>
   </form>
 
   @if (errorMessage(); as error) {
@@ -30,11 +39,29 @@
         <div>
           <p class="eyebrow">DELIVERY SHEET · {{ currentTask.jobCode }}</p>
           <h2 id="task-title">{{ currentTask.rider.name }}</h2>
+          <p class="plan-meta">
+            แผนวันที่ {{ formatPlanDate(currentTask.planDate) }} ·
+            เผยแพร่ {{ formatDateTime(currentTask.publishedAt) }} น.
+          </p>
         </div>
-        <a class="map-button" [href]="mapsUrl(currentTask)" target="_blank" rel="noopener noreferrer">
-          เปิดเส้นทางใน Google Maps
-        </a>
+        <div class="task-actions">
+          <a class="map-button" [href]="mapsUrl(currentTask)" target="_blank" rel="noopener noreferrer">
+            เปิดเส้นทางใน Google Maps
+          </a>
+          <button class="copy-button" type="button" (click)="copyMapsUrl(currentTask)">
+            คัดลอกลิงก์แผนที่
+          </button>
+        </div>
       </header>
+
+      @if (!currentTask.isToday) {
+        <p class="notice warning" role="alert">
+          แผนนี้ไม่ใช่ของวันนี้ ({{ formatPlanDate(currentTask.planDate) }}) กรุณาให้เจ้าของร้านเผยแพร่แผนใหม่
+        </p>
+      }
+      @if (copyMessage(); as message) {
+        <p class="notice success" role="status">{{ message }}</p>
+      }
 
       <div class="task-summary">
         <article><span>อาหารที่ต้องนำไปส่ง</span><strong>{{ currentTask.totalBoxes }}</strong><small>กล่อง</small></article>
@@ -47,7 +74,11 @@
         {{ currentTask.meetsDeadline ? 'เวลาประมาณยังอยู่ก่อนกำหนด 12:30 น.' : 'เวลาประมาณเกินกำหนด 12:30 น. กรุณาแจ้งร้าน' }}
       </div>
 
-      <h3>ลำดับจุดส่ง</h3>
+      <p class="route-sequence">
+        <strong>ลำดับการส่ง:</strong> {{ routeSequence(currentTask) }}
+      </p>
+
+      <h3>รายละเอียดจุดส่ง</h3>
       <ol class="stop-list">
         @for (stop of currentTask.stops; track stop.id) {
           <li>
@@ -57,7 +88,10 @@
               <span>{{ stop.address }}</span>
               <small>ออเดอร์ #{{ stop.id }} · {{ stop.totalBoxes }} กล่อง</small>
             </div>
-            <a class="stop-map-link" [href]="stopMapUrl(stop.latitude, stop.longitude)" target="_blank" rel="noopener noreferrer">นำทาง</a>
+            <div class="stop-actions">
+              <a class="stop-map-link" [href]="stopMapUrl(stop.latitude, stop.longitude)" target="_blank" rel="noopener noreferrer">นำทาง</a>
+              <span class="stop-phone">โทร {{ stop.customerPhone }}</span>
+            </div>
           </li>
         }
       </ol>

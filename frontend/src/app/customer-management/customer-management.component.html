@@ -3,7 +3,7 @@
     <div>
       <p class="eyebrow">CUSTOMER DIRECTORY</p>
       <h1>จัดการข้อมูลลูกค้า</h1>
-      <p class="subtitle">จัดเก็บที่อยู่และพิกัดจำลองสำหรับวางแผนการจัดส่ง</p>
+      <p class="subtitle">จัดเก็บข้อมูลลูกค้าใน SQLite พร้อมพิกัดสำหรับวางแผนการจัดส่ง</p>
     </div>
   </header>
 
@@ -39,6 +39,9 @@
           </button>
           <span>ใช้ OpenStreetMap Nominatim; กดค้นหาเองหลังกรอกที่อยู่</span>
         </div>
+        <p class="location-message wide">
+          รับเฉพาะพิกัดภายในระยะเส้นตรง 3 กม. จากร้าน ตามเงื่อนไขโจทย์
+        </p>
         @if (locationMessage(); as locationStatus) {
           <p class="location-message wide" role="status">{{ locationStatus }}</p>
         }

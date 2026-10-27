@@ -3,6 +3,68 @@
   gap: 28px;
 }
 
+.heading-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.planner-button,
+.refresh-button {
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 650;
+  padding: 12px 16px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.planner-button {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.summary-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.summary-card {
+  background: #fff;
+  border: 1px solid #e7ebf2;
+  border-radius: 16px;
+  box-shadow: 0 12px 35px rgb(15 23 42 / 4%);
+  display: grid;
+  gap: 6px;
+  padding: 18px 20px;
+}
+
+.summary-card span,
+.summary-card small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.summary-card strong {
+  color: #172033;
+  font-size: 1.7rem;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.summary-card.accent {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.summary-card.accent strong {
+  color: #15803d;
+}
+
 .create-card {
   background: #fff;
   border: 1px solid #e7ebf2;
@@ -27,7 +89,7 @@
   align-items: end;
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(220px, 1fr) 150px auto;
+  grid-template-columns: minmax(220px, 1.2fr) 130px minmax(190px, 1fr) auto;
 }
 
 .order-form label {
@@ -192,7 +254,7 @@ h1 {
 
 table {
   border-collapse: collapse;
-  min-width: 1050px;
+  min-width: 1180px;
   text-align: left;
   width: 100%;
 }
@@ -225,6 +287,31 @@ td {
 .customer-name {
   color: #172033;
   font-weight: 650;
+  white-space: nowrap;
+}
+
+.rider-cell {
+  min-width: 130px;
+  white-space: nowrap;
+}
+
+.rider-cell strong,
+.rider-cell small {
+  display: block;
+}
+
+.rider-cell small,
+.muted {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.pickup-address {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -302,10 +389,20 @@ td {
   padding: 5px;
 }
 
+@media (max-width: 760px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 600px) {
   .page-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .heading-actions {
+    justify-content: flex-start;
   }
 
   .order-form {

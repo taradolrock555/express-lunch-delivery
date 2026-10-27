@@ -1,22 +1,31 @@
 {
   "name": "express-lunch-delivery-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Backend API for rider route management",
-  "main": "server.js",
+  "description": "Lunch delivery routing API (Node.js + TypeScript + Express + SQLite)",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
-    "seed": "node scripts/seedFirestore.js",
-    "test": "node --test"
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "build": "tsc",
+    "start:prod": "node dist/server.js",
+    "seed": "tsx src/seed.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "firebase-admin": "^14.5.0"
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.18.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
   }
 }

@@ -3,21 +3,56 @@
     <div>
       <p class="eyebrow">DELIVERY ROUTE PLANNER</p>
       <h1>วางแผนเส้นทางจัดส่ง</h1>
-      <p class="subtitle">จำลองการแบ่งออเดอร์ให้ไรเดอร์และประเมินเวลา / ต้นทุน</p>
+      <p class="subtitle">
+        ระบบจัดออเดอร์ที่เลือกอัตโนมัติให้ไรเดอร์ โดยคงไรเดอร์ที่เจ้าของกำหนดเองไว้ พร้อมประเมินก่อนเผยแพร่
+      </p>
     </div>
-    <button class="primary-button" type="button" (click)="recalculate()" [disabled]="isLoading()">
-      {{ isLoading() ? 'กำลังคำนวณ...' : 'คำนวณเส้นทางใหม่' }}
-    </button>
+    <div class="heading-actions">
+      <button class="secondary-button" type="button" (click)="recalculate()" [disabled]="isLoading()">
+        {{ isLoading() ? 'กำลังคำนวณ...' : 'คำนวณใหม่' }}
+      </button>
+      <button class="primary-button" type="button" (click)="publish()" [disabled]="isLoading() || isPublishing() || !plan()">
+        {{ isPublishing() ? 'กำลังเผยแพร่...' : 'เผยแพร่แผนให้ไรเดอร์' }}
+      </button>
+    </div>
   </header>
 
+  <div class="strategy-tabs" role="tablist" aria-label="เลือกวิธีวางแผนเส้นทาง">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="strategy() === 'alternative'"
+      [class.active]="strategy() === 'alternative'"
+      (click)="compare('alternative')"
+      [disabled]="isLoading()"
+    >
+      แผนประหยัดต้นทุน
+      <small>จัดกลุ่ม + เรียงลำดับจุดส่งให้ค่าส่งต่ำที่สุด</small>
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="strategy() === 'nearest'"
+      [class.active]="strategy() === 'nearest'"
+      (click)="compare('nearest')"
+      [disabled]="isLoading()"
+    >
+      แผนเรียงจุดใกล้ก่อน
+      <small>ใช้เป็นแผนเปรียบเทียบว่าประหยัดได้จริงหรือไม่</small>
+    </button>
+  </div>
+
   <aside class="demo-note">
-    <strong>แผนประหยัดต้นทุน:</strong>
-    ทดลองเรียงจุดจากใกล้ไปไกลและไกลไปใกล้ ทั้งแบบสลับไรเดอร์และจัดเป็นกลุ่ม
-    จากนั้นเปรียบเทียบระยะทางถนน OSRM และค่าส่งรวมภายใต้ข้อจำกัด
-    ไม่เกิน 3 ออเดอร์ต่อไรเดอร์และส่งถึงภายใน 12:30 น. หาก OSRM ใช้ไม่ได้จะใช้ Haversine
-    เวลาเดินทางประเมินจากความเร็ว 30 กม./ชม.
+    <strong>เงื่อนไขจากโจทย์:</strong>
+    ทุกออเดอร์ต้องถึงภายใน 1 ชั่วโมง (ออก 11:30 – ถึงไม่เกิน 12:30) ·
+    ไรเดอร์ 1 คนรับไม่เกิน 3 ออเดอร์ · 1 ออเดอร์ไม่เกิน 3 กล่อง ·
+    ค่าส่ง 15 บาท/เที่ยว + 2 บาท/กม./กล่อง · ไรเดอร์ขับ 30 กม./ชม.
+    ระบบจัดออเดอร์ให้อัตโนมัติและคงการกำหนดไรเดอร์เองไว้ แล้วหากลุ่มและลำดับจุดส่งที่ค่าส่งต่ำ
   </aside>
 
+  @if (successMessage(); as message) {
+    <p class="notice success" role="status">{{ message }}</p>
+  }
   @if (errorMessage(); as error) {
     <div class="notice error" role="alert">
       {{ error }}
@@ -26,18 +61,48 @@
   }
 
   @if (plan(); as currentPlan) {
+    @if (currentPlan.totals.overBudget) {
+      <div class="notice warning" role="alert">
+        <strong>ค่าส่งรวมเกินงบ:</strong>
+        ใช้ {{ currentPlan.totals.deliveryCost | number:'1.2-2' }} บาท
+        จากงบ {{ currentPlan.totals.budget | number:'1.2-2' }} บาท
+        — กด “คำนวณใหม่” เพื่อให้ระบบลองจัดกลุ่มใหม่ หรือเพิ่มไรเดอร์
+      </div>
+    }
+    @if (currentPlan.totals.belowTargetProfit) {
+      <div class="notice warning" role="alert">
+        <strong>กำไรต่ำกว่าเป้า:</strong>
+        กำไรสุทธิ {{ currentPlan.totals.profit | number:'1.2-2' }} บาท
+        ต่ำกว่าเป้า {{ currentPlan.totals.targetProfit | number:'1.2-2' }} บาท
+        — ควรตรวจค่าส่งหรือจำนวนออเดอร์ก่อนเผยแพร่
+      </div>
+    }
+    @if (!currentPlan.totals.allRoutesMeetDeadline) {
+      <div class="notice error" role="alert">
+        <strong>มีเส้นทางที่คาดว่าจะถึงหลัง 12:30 น.</strong>
+        กรุณาเพิ่มไรเดอร์หรือลดจำนวนออเดอร์ในเที่ยวเดียวกัน
+      </div>
+    }
+
     <section class="summary-grid" aria-label="สรุปการจัดส่งและต้นทุน">
       <article class="metric-card">
         <span>ข้าวกล่องทั้งหมด</span><strong>{{ currentPlan.totals.totalBoxes }}</strong><small>กล่อง</small>
       </article>
       <article class="metric-card">
-        <span>ระยะทางรวมโดยประมาณ</span><strong>{{ currentPlan.totals.distanceKm }}</strong><small>กิโลเมตร</small>
+        <span>ระยะทางรวม</span><strong>{{ currentPlan.totals.distanceKm }}</strong><small>กิโลเมตร</small>
       </article>
       <article class="metric-card">
-        <span>ค่าส่งประมาณ</span><strong>{{ currentPlan.totals.deliveryCost | number:'1.2-2' }}</strong><small>บาท</small>
+        <span>เวลาเดินทางรวม</span><strong>{{ currentPlan.totals.totalTravelMinutes }}</strong><small>นาที</small>
       </article>
-      <article class="metric-card" [class.negative]="currentPlan.totals.profit < 0">
-        <span>กำไรหลังหักต้นทุนจำลอง</span><strong>{{ currentPlan.totals.profit | number:'1.2-2' }}</strong><small>บาท</small>
+      <article class="metric-card" [class.negative]="currentPlan.totals.overBudget">
+        <span>ค่าส่งประมาณ</span>
+        <strong>{{ currentPlan.totals.deliveryCost | number:'1.2-2' }}</strong>
+        <small>บาท · งบ {{ currentPlan.totals.budget | number:'1.2-2' }} บาท</small>
+      </article>
+      <article class="metric-card" [class.negative]="currentPlan.totals.belowTargetProfit">
+        <span>กำไรหลังหักต้นทุน</span>
+        <strong>{{ currentPlan.totals.profit | number:'1.2-2' }}</strong>
+        <small>บาท · เป้า {{ currentPlan.totals.targetProfit | number:'1.2-2' }} บาท</small>
       </article>
     </section>
 
@@ -47,18 +112,18 @@
           <h2>ภาพรวมเส้นทางและจุดส่ง</h2>
           <p>ร้าน: {{ currentPlan.shop.name }} · {{ currentPlan.shop.address }}</p>
         </div>
-        <span class="strategy-badge">{{ currentPlan.strategy === 'nearest' ? 'เรียงจุดใกล้ก่อน (เปรียบเทียบ)' : 'แผนประหยัดต้นทุน' }}</span>
+        <span class="strategy-badge">{{ strategyLabel(currentPlan.strategy) }}</span>
       </div>
       @if (currentPlan.optimizationMethod) {
         <p class="optimization-method">
           วิธีจัดกลุ่มที่เลือก: {{ optimizationMethodLabel(currentPlan.optimizationMethod) }}
-          · คัดกลุ่มด้วย {{ currentPlan.optimizationSource === 'osrm' ? 'ระยะ OSRM Table' : 'ระยะ Haversine สำรอง' }}
-          · {{ currentPlan.optimizationComparisonMethod === 'route' ? 'เปรียบเทียบแต่ละแผนจากเส้นทาง OSRM จริง' : 'เปรียบเทียบเบื้องต้นจาก OSRM Table' }}
+          · ข้อมูลระยะทาง {{ currentPlan.optimizationSource === 'osrm' ? 'OSRM' : 'Haversine สำรอง' }}
+          · {{ currentPlan.optimizationComparisonMethod === 'route' ? 'เปรียบเทียบจากเส้นทางจริง' : 'เปรียบเทียบจากตารางระยะทาง' }}
         </p>
       }
-      @if (currentPlan.optimizationComparisons; as comparisons) {
+      @if (currentPlan.optimizationComparisons?.length) {
         <div class="map-sources optimization-comparisons" aria-label="ผลเปรียบเทียบวิธีจัดกลุ่ม">
-          @for (comparison of comparisons; track comparison.method) {
+          @for (comparison of currentPlan.optimizationComparisons; track comparison.method) {
             <span [class.selected]="comparison.method === currentPlan.optimizationMethod">
               {{ optimizationMethodLabel(comparison.method) }}:
               {{ currentPlan.optimizationComparisonMethod === 'table' ? 'ประมาณ ' : '' }}{{ comparison.distanceKm | number:'1.2-2' }} กม. ·
@@ -86,7 +151,7 @@
       </div>
       <div class="legend">
         @for (route of currentPlan.routes; track route.rider.id; let routeIndex = $index) {
-          <span><i [style.background]="colorForRoute(routeIndex)"></i>{{ route.rider.name }} · {{ route.stops.length }} จุด</span>
+          <span><i [style.background]="colorForRoute(routeIndex)"></i>{{ route.rider.name }} · {{ totalStops(route) }} จุด</span>
         } @empty {
           <span>ยังไม่มีออเดอร์พร้อมจัดส่ง</span>
         }
@@ -98,18 +163,18 @@
         <article class="route-card">
           <header>
             <span class="route-color" [style.background]="colorForRoute(routeIndex)"></span>
-            <div><h2>{{ route.rider.name }}</h2><small>เลขใบงาน {{ route.rider.jobCode }}</small></div>
+            <div><h2>{{ route.rider.name }}</h2><small>รหัสพนักงาน {{ route.rider.jobCode }}</small></div>
             <strong class="arrival" [class.late]="!route.meetsDeadline">{{ route.estimatedArrival }} น.</strong>
           </header>
-          <p class="route-stats">{{ route.stops.length }} ออเดอร์ · {{ route.totalBoxes }} กล่อง · {{ route.distanceKm }} กม. · {{ route.travelMinutes }} นาที</p>
+          <p class="route-stats">{{ totalStops(route) }} ออเดอร์ · {{ route.totalBoxes }} กล่อง · {{ route.distanceKm }} กม. · {{ route.travelMinutes }} นาที</p>
           <ol>
             @for (stop of route.stops; track stop.id) {
-              <li><strong>{{ stop.customerName }}</strong><span>{{ stop.address }} · {{ stop.totalBoxes }} กล่อง</span></li>
+              <li><strong>จุดที่ {{ stop.sequenceNumber }} · {{ stop.customerName }}</strong><span>{{ stop.address }} · {{ stop.totalBoxes }} กล่อง</span></li>
             }
           </ol>
           <footer>
-            <span>ค่าเที่ยว/ระยะทาง <strong>{{ route.deliveryCost | number:'1.2-2' }} บาท</strong></span>
-            <span>กำไรสุทธิจำลอง <strong [class.loss]="route.profit < 0">{{ route.profit | number:'1.2-2' }} บาท</strong></span>
+            <span>ค่าส่ง <strong>{{ route.deliveryCost | number:'1.2-2' }} บาท</strong></span>
+            <span>กำไรสุทธิ <strong [class.loss]="route.profit < 0">{{ route.profit | number:'1.2-2' }} บาท</strong></span>
           </footer>
           @if (!route.meetsDeadline) {
             <p class="late-note">เวลาถึงโดยประมาณเกิน 12:30 น.</p>
@@ -120,11 +185,14 @@
       }
     </section>
     <p class="formula-note">
-      สูตรจำลอง: ขาย 65 บาท/กล่อง − ต้นทุนอาหาร 40 บาท/กล่อง − (15 บาท/เที่ยว + 2 บาท/กม./กล่อง);
-      ระบบลองเรียงใกล้ไปไกลและไกลไปใกล้ แล้วเลือกแผนที่ค่าส่งรวมต่ำกว่า โดยทุกเส้นทางต้องถึงภายใน 1 ชั่วโมง
+      สูตรคำนวณ: ขาย 65 บาท/กล่อง − ต้นทุนอาหาร 40 บาท/กล่อง − (15 บาท/เที่ยว + 2 บาท/กม./กล่อง);
+      ระบบจัดออเดอร์อัตโนมัติและคงไรเดอร์ที่เจ้าของกำหนดเองไว้ โดยทุกเส้นทางต้องถึงภายใน 1 ชั่วโมง
       และไม่เกิน 3 ออเดอร์ต่อไรเดอร์ / 3 กล่องต่อออเดอร์
     </p>
+    @if (publishedAt(); as value) {
+      <p class="publish-status">เผยแพร่แผนล่าสุด: {{ formatDateTime(value) }} น.</p>
+    }
   } @else if (isLoading()) {
-    <div class="state-card" role="status">กำลังจัดกลุ่มออเดอร์และคำนวณตัวอย่าง...</div>
+    <div class="state-card" role="status">กำลังจัดกลุ่มออเดอร์และคำนวณเส้นทาง...</div>
   }
 </section>

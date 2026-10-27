@@ -1,7 +1,22 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type * as Leaflet from 'leaflet';
-import { RouteOptimizationMethod, RoutePlan, RoutePlanningService, RouteStrategy, RiderRoute } from '../services/route-planning.service';
+import {
+  RouteOptimizationMethod,
+  RoutePlan,
+  RoutePlanningService,
+  RouteStrategy,
+  RiderRoute,
+} from '../services/route-planning.service';
 
 @Component({
   imports: [CommonModule],
@@ -28,15 +43,32 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly plan = signal<RoutePlan | null>(null);
   protected readonly isLoading = signal(false);
+  protected readonly isPublishing = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly successMessage = signal<string | null>(null);
   protected readonly strategy = signal<RouteStrategy>('alternative');
-  protected readonly routeColors = ['#dc2626', '#16a34a', '#2563eb', '#9333ea', '#ea580c'];
+  protected readonly publishedAt = signal<string | null>(null);
+  // The assignment allows up to 10 riders (30 orders / 3 orders per rider),
+  // so keep a distinct, easy-to-see colour for every possible rider.
+  protected readonly routeColors = [
+    '#dc2626',
+    '#16a34a',
+    '#eab308',
+    '#2563eb',
+    '#9333ea',
+    '#0891b2',
+    '#db2777',
+    '#ea580c',
+    '#0f766e',
+    '#4f46e5',
+  ];
 
   ngAfterViewInit(): void {
     this.scheduleMapRender();
   }
 
   ngOnInit(): void {
+    this.loadPublishedAt();
     this.loadPlan('alternative');
   }
 
@@ -49,13 +81,52 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected recalculate(): void {
-    this.loadPlan(this.strategy() === 'nearest' ? 'alternative' : 'nearest');
+    this.loadPlan(this.strategy());
+  }
+
+  protected compare(strategy: RouteStrategy): void {
+    if (this.strategy() === strategy) {
+      return;
+    }
+    this.loadPlan(strategy);
+  }
+
+  protected publish(): void {
+    this.isPublishing.set(true);
+    this.errorMessage.set(null);
+    this.successMessage.set(null);
+    this.routePlanningService.publish(this.strategy()).subscribe({
+      next: (plan) => {
+        this.plan.set(plan);
+        this.publishedAt.set(plan.publishedAt);
+        this.isPublishing.set(false);
+        this.successMessage.set(
+          'เผยแพร่แผนแล้ว — ไรเดอร์สามารถใช้รหัสพนักงานเพื่อดูงานของตัวเองได้',
+        );
+        this.scheduleMapRender();
+      },
+      error: (error: unknown) => {
+        console.error('Failed to publish delivery routes:', error);
+        this.errorMessage.set(this.apiErrorMessage(error, 'เผยแพร่แผนไม่สำเร็จ'));
+        this.isPublishing.set(false);
+      },
+    });
+  }
+
+  private loadPublishedAt(): void {
+    this.routePlanningService.getCurrent().subscribe({
+      next: (plan) => this.publishedAt.set(plan.publishedAt),
+      error: () => {
+        // ยังไม่เคยเผยแพร่แผน — ไม่ต้องแสดง error ให้รบกวนหน้าจอ
+      },
+    });
   }
 
   protected loadPlan(strategy: RouteStrategy): void {
     this.strategy.set(strategy);
     this.isLoading.set(true);
     this.errorMessage.set(null);
+    this.successMessage.set(null);
     this.routePlanningService.preview(strategy).subscribe({
       next: (plan) => {
         this.plan.set(plan);
@@ -64,7 +135,7 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
       },
       error: (error: unknown) => {
         console.error('Failed to calculate delivery routes:', error);
-        this.errorMessage.set(this.apiErrorMessage(error, 'คำนวณเส้นทางจำลองไม่สำเร็จ'));
+        this.errorMessage.set(this.apiErrorMessage(error, 'คำนวณเส้นทางไม่สำเร็จ'));
         this.isLoading.set(false);
       },
     });
@@ -72,6 +143,10 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
 
   protected colorForRoute(index: number): string {
     return this.routeColors[index % this.routeColors.length];
+  }
+
+  protected strategyLabel(strategy: RouteStrategy): string {
+    return strategy === 'nearest' ? 'เรียงจุดใกล้ก่อน' : 'แผนประหยัดต้นทุน';
   }
 
   protected optimizationMethodLabel(method: RouteOptimizationMethod | undefined): string {
@@ -88,6 +163,24 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
       default:
         return 'ปรับกลุ่มและลำดับอัตโนมัติ';
     }
+  }
+
+  protected formatDateTime(value: string | null): string {
+    if (!value) {
+      return '-';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString('th-TH', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+  }
+
+  protected totalStops(route: RiderRoute): number {
+    return route.stops.length;
   }
 
   private scheduleMapRender(): void {
@@ -113,9 +206,13 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
     }
 
     if (!this.map) {
-      this.map = L.map(this.mapHost).setView([plan.shop.latitude, plan.shop.longitude], 14);
+      this.map = L.map(this.mapHost).setView(
+        [plan.shop.latitude, plan.shop.longitude],
+        14,
+      );
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
       }).addTo(this.map);
       this.routeLayer = L.layerGroup().addTo(this.map);
@@ -126,8 +223,8 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
 
     plan.routes.forEach((route, routeIndex) => {
       const color = this.colorForRoute(routeIndex);
-      const geometry = route.geometry?.coordinates.map(
-        ([longitude, latitude]) => L.latLng(latitude, longitude),
+      const geometry = route.geometry?.coordinates.map(([longitude, latitude]) =>
+        L.latLng(latitude, longitude),
       );
       const coordinates = geometry?.length
         ? geometry
@@ -136,9 +233,11 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
             ...route.stops.map((stop) => L.latLng(stop.latitude, stop.longitude)),
           ];
 
-      L.polyline(coordinates, { color, weight: 5, opacity: 0.85 }).addTo(this.routeLayer!);
+      L.polyline(coordinates, { color, weight: 5, opacity: 0.85 }).addTo(
+        this.routeLayer!,
+      );
       coordinates.forEach((coordinate) => bounds.extend(coordinate));
-      route.stops.forEach((stop, stopIndex) => {
+      route.stops.forEach((stop) => {
         L.circleMarker([stop.latitude, stop.longitude], {
           color: '#fff',
           fillColor: color,
@@ -146,7 +245,9 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
           radius: 9,
           weight: 2,
         })
-          .bindTooltip(`${stopIndex + 1}. ${stop.customerName}`)
+          .bindTooltip(
+            `${stop.sequenceNumber}. ${stop.customerName} · ${stop.totalBoxes} กล่อง`,
+          )
           .addTo(this.routeLayer!);
       });
     });
@@ -168,7 +269,12 @@ export class RoutePlanning implements OnInit, AfterViewInit, OnDestroy {
   private apiErrorMessage(error: unknown, fallback: string): string {
     if (typeof error === 'object' && error !== null && 'error' in error) {
       const apiError = error.error;
-      if (typeof apiError === 'object' && apiError !== null && 'message' in apiError && typeof apiError.message === 'string') {
+      if (
+        typeof apiError === 'object' &&
+        apiError !== null &&
+        'message' in apiError &&
+        typeof apiError.message === 'string'
+      ) {
         return apiError.message;
       }
     }

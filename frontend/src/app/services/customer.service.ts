@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
+import { API_BASE_URL } from './api.config';
 
 export interface Customer {
   id: number;
@@ -21,7 +22,7 @@ interface ApiResponse<T> {
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = 'http://localhost:3000/api/customers';
+  private readonly apiUrl = `${API_BASE_URL}/customers`;
 
   getCustomers(): Observable<Customer[]> {
     return this.http.get<ApiResponse<Customer[]>>(this.apiUrl).pipe(
